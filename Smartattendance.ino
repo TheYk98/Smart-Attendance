@@ -1,113 +1,80 @@
-int mot1=9;
-int mot2=6;
-int mot3=5;
-int mot4=3;
+#include <SPI.h>
+#include <MFRC522.h>
 
-int left=13;
-int right=12;
-
-int Left=0;
-int Right=0;
-
-void LEFT (void);
-void RIGHT (void);
-void STOP (void);
-
-void setup()
-{
-  pinMode(mot1,OUTPUT);
-  pinMode(mot2,OUTPUT);
-  pinMode(mot3,OUTPUT);
-  pinMode(mot4,OUTPUT);
-
-  pinMode(left,INPUT);
-  pinMode(right,INPUT);
-
-  digitalWrite(left,HIGH);
-  digitalWrite(right,HIGH);
-  
-  
-}
-
-void loop() 
-{
+#define SS_PIN 10
+#define RST_PIN 9
  
-analogWrite(mot1,255);
-analogWrite(mot2,0);
-analogWrite(mot3,255);
-analogWrite(mot4,0);
+MFRC522 rfid(SS_PIN, RST_PIN); // Instance of the class
 
-while(1)
-{
-  Left=digitalRead(left);
-  Right=digitalRead(right);
+MFRC522::MIFARE_Key key; 
+
+// Init array that will store new NUID 
+byte nuidPICC[4];
+
+void setup() { 
+  Serial.begin(9600);
+  SPI.begin(); // Init SPI bus
+  rfid.PCD_Init(); // Init MFRC522 
+
+  for (byte i = 0; i < 6; i++) {
+    key.keyByte[i] = 0xFF;
+  }
+
+}
+ 
+void loop() {
+
+  // Look for new cards
+  if ( ! rfid.PICC_IsNewCardPresent())
+    return;
+
+  // Verify if the NUID has been readed
+  if ( ! rfid.PICC_ReadCardSerial())
+    return;
+
+  MFRC522::PICC_Type piccType = rfid.PICC_GetType(rfid.uid.sak);
+
+  // Check is the PICC of Classic MIFARE type
+  if (piccType != MFRC522::PICC_TYPE_MIFARE_MINI &&  
+    piccType != MFRC522::PICC_TYPE_MIFARE_1K &&
+    piccType != MFRC522::PICC_TYPE_MIFARE_4K) {
+    //Serial.println(F("Your tag is not of type MIFARE Classic."));
+    return;
+  }
+ String s;
+    for (byte i = 0; i < 4; i++) {
+      
+      nuidPICC[i] = rfid.uid.uidByte[i];
+      
+    }
   
-  if((Left==0 && Right==1)==1)
-  LEFT();
-  else if((Right==0 && Left==1)==1)
-  RIGHT();
-}
-}
 
-void LEFT (void)
-{
-   analogWrite(mot3,0);
-   analogWrite(mot4,30);
+    printHex(rfid.uid.uidByte, rfid.uid.size);
+    Serial.println();
    
-   
-   while(Left==0)
-   {
-    Left=digitalRead(left);
-    Right=digitalRead(right);
-    if(Right==0)
-    {
-      int lprev=Left;
-      int rprev=Right;
-      STOP();
-      while(((lprev==Left)&&(rprev==Right))==1)
-      {
-         Left=digitalRead(left);
-         Right=digitalRead(right);
-      }
-    }
-    analogWrite(mot1,255);
-    analogWrite(mot2,0); 
-   }
-   analogWrite(mot3,255);
-   analogWrite(mot4,0);
+  // Halt PICC
+  rfid.PICC_HaltA();
+
+  // Stop encryption on PCD
+  rfid.PCD_StopCrypto1();
 }
 
-void RIGHT (void)
-{
-   analogWrite(mot1,0);
-   analogWrite(mot2,30);
-
-   while(Right==0)
-   {
-    Left=digitalRead(left);
-    Right=digitalRead(right);
-    if(Left==0)
-    {
-      int lprev=Left;
-      int rprev=Right;
-     STOP();
-      while(((lprev==Left)&&(rprev==Right))==1)
-      {
-         Left=digitalRead(left);
-         Right=digitalRead(right);
-      }
-    }
-    analogWrite(mot3,255);
-    analogWrite(mot4,0);
-    }
-   analogWrite(mot1,255);
-   analogWrite(mot2,0);
+/**
+ * Helper routine to dump a byte array as hex values to Serial. 
+ */
+void printHex(byte *buffer, byte bufferSize) {
+  for (byte i = 0; i < bufferSize; i++) {
+    Serial.print(buffer[i] < 0x10 ? "0" : "");
+    Serial.print(buffer[i], HEX);
+  }
 }
-void STOP (void)
-{
-analogWrite(mot1,0);
-analogWrite(mot2,0);
-analogWrite(mot3,0);
-analogWrite(mot4,0);
-  
+
+/**
+ * Helper routine to dump a byte array as dec values to Serial.
+ */
+void printDec(byte *buffer, byte bufferSize) {
+  for (byte i = 0; i < bufferSize; i++) {
+    Serial.print(buffer[i] < 0x10 ? "0" : "");
+    Serial.print(buffer[i], DEC);
+  }
 }
